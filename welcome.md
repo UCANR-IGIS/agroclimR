@@ -1,4 +1,4 @@
-Thank you for registering for the [Computing AgroClimate Metrics in R](https://ucanr-igis.github.io/agroclimR/) workshop on **Friday December 2nd, 2022**, from **11am - 12:30pm** California time. I look forward to meeting everyone, and exploring weather driven metrics for agriculture in R.\
+Thank you for registering for the [Computing AgroClimate Metrics in R](https://ucanr-igis.github.io/agroclimR/) workshop on **Friday December 2nd, 2022**, from **11am - 12:30pm** California time. I look forward to meeting everyone, and exploring weather driven metrics for agriculture in R.
 
 You should receive a Google calendar invite for the workshop including a Zoom link. If you haven't received the Zoom link by the morning of the workshop, please contact the instructor.
 
@@ -12,6 +12,6 @@ If possible I highly recommend a **second monitor** for the hands-on exercises, 
 
 Thanks and if you have any questions please let me know.
 
-Best,
-Andy Lyons
+Best,\
+Andy Lyons\
 Instructor
