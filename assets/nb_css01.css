@@ -1,0 +1,41 @@
+h1 {
+  font-weight: bold;
+  font-size: 26px;
+  color: darkolivegreen;
+  border-top: 3px solid dimgrey;
+  margin-top: 1em;
+  padding-top: 0.5em;
+}
+h1.title {
+  color: black;
+  border: none;
+}
+h2 {
+  font-weight: bold;
+  font-size: 22px;
+  color: dimgray;
+}
+h3 {
+  font-weight: bold;
+  font-size: 18px;
+  color: black;
+}
+h4 {
+  font-weight: bold;
+  font-size: 16px;
+  color: MediumBlue;
+}
+h4.date {
+  color: #444;
+}
+img.centered {
+  display: block; 
+  margin: 1.5em auto;
+}
+div.shaded-box {
+  margin: 2em 4em;
+  padding: 0.5em;
+  background-color: #ddd; 
+  border: 2px solid gray;
+  border-radius: 5px;
+}
