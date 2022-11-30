@@ -12,4 +12,5 @@ slides/*.Rmd
 # Temporary ignores below:
 /data
 *_nb*
-/slides
+/slides/images
+/slides/agclim*
