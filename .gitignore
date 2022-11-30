@@ -9,6 +9,7 @@ slides/*.Rmd
 *_ans.R
 *gtag.js
 /data/huc10_temps*
+/head.html
 # Temporary ignores below:
 /data
 *_nb*
