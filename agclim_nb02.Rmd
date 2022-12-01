@@ -1,0 +1,552 @@
+---
+title: "Agroclimate Metrics Notebook #2: Cummulative metrics and multi-year summaries"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    css: https://ucanr-igis.github.io/agroclimR/assets/nb_css01.css
+    includes: 
+      after_body: https://ucanr-igis.github.io/agroclimR/assets/nb_footer_agroclimr.html
+---
+
+# Summary
+
+In this Notebook, we will see how to:
+
+-   download 10 years of daily historic observed temperature data for a single location from an interpolated dataset called gridMET hosted on Cal-Adapt
+
+-   convert units using the [units](https://cran.r-project.org/package=units "units package") package
+
+-   time slice multi-year data including custom time periods based on months or calendar dates
+
+-   create tabular and visual summaries of multi-year metrics
+
+-   compute accumulated degree days for specific crops & pests using the [degday](https://ucanr-igis.github.io/degday/ "degday package") package
+
+-   find the date when a specific accumulated degree day threshold is reached
+
+-   interpolate hourly temperatures from the daily min and max
+
+-   compute accumulated chill portions using the [chillR](https://cran.r-project.org/package=chillR "chillR package") package
+
+# Load Packages
+
+First load the packages we'll be using:
+
+```{r chunk01, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+```
+
+\
+
+# Import gridMET data
+
+For this exercise, we'll work with 10 years (2011-2020) of daily observed historical data from gridMET for a location in the northern San Joaquin Valley. [gridMET](https://www.climatologylab.org/gridmet.html) weather data come as 4km rasters interpolated from weather stations. It is based on PRISM with additional regional reanalysis using climatically aided interpolation to better capture microclimates.
+
+We can get gridMET data from Cal-Adapt, which hosts gridMET data up through 2020. The [caladaptR](https://ucanr-igis.github.io/caladaptr/) package allows us to import data through the Cal-Adapt API. The first step is to create the API request object ([more info](https://www.youtube.com/watch?v=APCIBs35BJg)). For gridMET data, we need to identify the dataset by its 'slug', which we can find by searching the Cal-Adapt API data catalog:
+
+```{r chunk02}
+library(caladaptr)
+
+## Search the data catalog for gridMET:  
+ca_catalog_search("gridmet")
+```
+
+\
+
+Once you find the 'slugs' of the dataset(s) of interest, you can construct a API request object:
+
+```{r chunk03}
+## Define an object to hold longitude & latitude coordinates
+pt1_coords <- c(-121.171, 37.730)
+
+pt1_cap <- ca_loc_pt(coords = pt1_coords) |>
+  ca_slug(c("tmmn_day_gridmet", "tmmx_day_gridmet")) |> 
+  ca_dates(start = as.Date("2010-10-01"), end = as.Date("2020-09-30"))
+
+pt1_cap
+```
+
+\
+
+You can plot a caladaptR API request object to see exactly where it is:
+
+```{r chunk04}
+plot(pt1_cap)
+```
+
+\
+
+To actually retrieve data, you feed the API request object into a function that communicates with the server and retrieves data:
+
+```{r chunk05}
+## Uncomment the following to retreive data from the server
+# pt1_tbl <- pt1_cap |> ca_getvals_tbl()
+
+pt1_tbl <- readRDS("./data/pt1_tbl.Rds")
+
+glimpse(pt1_tbl)
+head(pt1_tbl)
+```
+
+\
+
+# Convert Units
+
+The climate variable column returned by `ca_getvals_tbl()` (in this case temperature) is a *units* objects (i.e., numeric with the units encoded) from the [units](https://cran.r-project.org/package=units "units package") package. This makes it easy to convert units, for example Kelvin to Fahrenheit, with `set_units()`.
+
+We also need to convert the `dt` column from character values to Date values, so we can use it for filtering and sorting.
+
+```{r chunk06}
+library(units)
+
+pt1_degf_tbl <- pt1_tbl |> 
+  mutate(dt_date = as.Date(dt),
+         temp_f = set_units(val, degF)) |> 
+  select(dt_date, slug, val, temp_f)
+
+head(pt1_degf_tbl)
+```
+
+\
+
+Plot the raw data:
+
+```{r chunk07}
+ggplot(pt1_degf_tbl, mapping = aes(x = dt_date, y = temp_f, group = slug)) + 
+  geom_line() + 
+  scale_x_date(date_breaks = "1 years", date_labels = "%Y") +
+  facet_wrap(~ slug, ncol = 1) 
+```
+
+\
+
+**Note:** Because we are using modeled data, gridMET doesn't contain any missing values. Normally, if we were using weather station data, we would first need to check for missing rows and/or NA values, and then deal with them using substitution and/or interpolation ([details](http://inresgb-lehre.iaas.uni-bonn.de/chillR_book/filling-gaps-in-temperature-records.html)).
+
+# Time Filtering Multi-Year Datasets
+
+To filter multi-year datasets by month or season, we can use functions from [lubridate](https://lubridate.tidyverse.org/ "lubridate R package") to pull out date parts. For example to add columns for the month and year:
+
+```{r chunk08}
+pt1_month_year_tbl <- pt1_degf_tbl |> 
+  mutate(month_num = lubridate::month(dt_date), 
+         year = lubridate::year(dt_date)) |> 
+  select(dt_date, month_num, year, slug, temp_f)
+
+head(pt1_month_year_tbl)
+```
+
+\
+
+# Group and Summarize
+
+To compute descriptive stats of groups of rows, you can use dplyr's `group_by()` followed by `summarise()`. For example to compute the average daily high temp by year:
+
+```{r chunk09}
+pt1_month_year_tbl |> 
+  filter(slug == "tmmx_day_gridmet") |> 
+  group_by(year) |> 
+  summarise(mean_daily_high = mean(temp_f))
+```
+
+\
+
+McBride and Lacan ([2018](https://doi.org/10.1016/j.ufug.2018.07.020)) computed the *average daily high temperature in July* as a measure of heat stress for trees. Here's how that would look for our historical data:
+
+```{r chunk10}
+pt1_month_year_tbl |> 
+  filter(slug == "tmmx_day_gridmet", month_num == 7) |> 
+  group_by(year) |> 
+  summarise(mean_daily_high_july = mean(temp_f))
+```
+
+\
+
+If we wanted the mean daily high in July for this entire time period (not by year), simply remove the `group_by()` statement:
+
+```{r chunk11}
+pt1_month_year_tbl |> 
+  filter(slug == "tmmx_day_gridmet", month_num == 7) |> 
+  summarise(mean_daily_high_july_2010s = mean(temp_f)) 
+```
+
+\
+
+# Custom Time Slices
+
+Some metrics are computed for custom time periods defined by months or calendar days. You can create columns for custom time periods using vectorized conditional functions such as `dplyr::if_else()` and `dplyr::case_when()`.
+
+## Water Year
+
+The [water year](https://en.wikipedia.org/wiki/Water_year) starts on Oct. 1st and goes through Sep. 30. It is designated by the calendar year on which it ends.
+
+We can add a column for water year using a mutate expression that includes `if_else()`:
+
+```{r chunk12}
+pt1_water_year_tbl <- pt1_month_year_tbl |> 
+  mutate(water_year = year + if_else(month_num >= 10, 1, 0))
+
+head(pt1_water_year_tbl)
+```
+
+\
+
+For more flexibility, `lubridate::yday()` returns the 'Julian day' (1..365) of a date. For example, to pull out April 15 - June 15 each year, we can use:
+
+```{r chunk13}
+(jday_start <- lubridate::yday(as.Date("1970-04-15")))
+
+(jday_end <- lubridate::yday(as.Date("1970-06-15")))
+
+pt1_afterbloom_tbl <- pt1_month_year_tbl |> 
+  mutate(jday = yday(dt_date)) |> 
+  filter(jday >= jday_start, jday <= jday_end) |> 
+  select(dt_date, year, jday, slug, temp_f)
+  
+head(pt1_afterbloom_tbl)
+```
+
+\
+
+To display the minimum daily temperature during this period as box and whiskers plots:
+
+```{r chunk14}
+ggplot(pt1_afterbloom_tbl |> filter(slug == "tmmn_day_gridmet"), 
+       mapping = aes(x = year, y = temp_f, group = year)) +
+  geom_boxplot() +
+  labs(title = "Minimum Daily Temp April 15 - June 15",
+       subtitle = "Point 1, 2011 - 2022",
+       x = "year",
+       y = "temp")
+```
+
+\
+
+# Degree Days
+
+Many phenology events for trees (e.g., blooming) and insects (e.g., egg laying) can be predicted by [degree days](http://www.ipm.ucdavis.edu/WEATHER/ddconcepts.html). Degree days can be thought of as the total amount of warmth, within a usable temperature range, that a plant or insect is exposed to over time. Accumulated degree days make good predictors because plants and insects are cold blooded, hence their development rates are influenced by the ambient temperature.
+
+Some things to know about degree days:
+
+-   Degree day are not a real thing that you can measure with a sensor, like temperature or humidity. Rather they are an analytical construct that aims to mirror plant and insect physiology.
+
+-   There is no such thing as a 'universal' or 'standard' degree day. Degree days take into consider the usable range of temperature for a specific species, so they are always in reference to a specific insect, crop, or insect-crop combo.
+
+-   Degree days are computed from the daily minimum and maximum temperatures, with additional parameters specific to a crop and/or insect (degree hours are computed from hourly temperature).
+
+-   Degree days be can computed in Fahrenheit or Celsius.
+
+-   Degree days are not very useful by themselves. You need to use them with a phenology table that predicts when events will take place based on accumulated degree days.
+
+-   Phenology tables also tell you when to start counting degree days. This could be a calendar event, or the date of an observation such as when you see eggs in your bug traps.
+
+-   There are different formula for computing degree days, including the simple average method, single sine, single triangle, double-sine, and double-triangle. The phenology table will tell you which one to use.
+
+-   You can compute degree days using the [degday](https://ucanr-igis.github.io/degday/) package.
+
+## Example: Navel Orangeworm Degree Days
+
+In this example, we'll use degree days to explore the timing of generations of Navel Orangeworm living in an almond orchard. We begin by looking up which degree day formula to use, and the range of usable temperatures, from [UC IPM](http://www.ipm.ucdavis.edu/calludt.cgi/DDMODEL?MODEL=NOW&CROP=almonds) website, which tells us:
+
+::: shaded-box
+**Navel Orangeworm in Almonds**
+
+*Lower/upper threshold*: 55/94°F
+
+*Calculation/upper cutoff method*: single sine/horizontal
+
+*Biofix*: The first biofix is the beginning of a consistent increase in egg laying on egg traps. When at least 75% of the egg traps in a given location show increases in the number of eggs on two consecutive monitoring dates, the biofix is the first of those two dates.
+
+*Degree Day Events:*
+
+-   the best time to spray is when 100 NOW-DD have accumulated after biofix
+
+-   the next generation of adults can be expected in 1056 NOW-DD after biofix
+:::
+
+To compute degree days, we start by putting the daily min and max temperatures in separate columns:
+
+```{r chunk15}
+pt1_minmax_tbl <- pt1_tbl |> 
+  mutate(dt = as.Date(dt),
+         temp_f = set_units(val, degF)) |> 
+  pivot_wider(id_cols = dt, names_from = slug, values_from = temp_f) |> 
+  rename(tmin = tmmn_day_gridmet, tmax = tmmx_day_gridmet) |> 
+  mutate(tmax = if_else(tmax < tmin, tmin, tmax))
+
+head(pt1_minmax_tbl)
+```
+
+\
+
+Now we can compute NOW Almond degree days:
+
+```{r chunk16}
+library(degday)
+thresh_low <- 55
+thresh_up <- 94
+
+pt1_nowdd_tbl <- pt1_minmax_tbl |> 
+  mutate(now_dd = dd_sng_sine(daily_min = tmin, 
+                              daily_max = tmax, 
+                              thresh_low = thresh_low, 
+                              thresh_up = thresh_up))
+  
+head(pt1_nowdd_tbl)
+```
+
+\
+
+### Applying Degree Days: Pest Management
+
+Suppose an almond grower sees a consistent increase in egg laying on egg traps on **April 18, 2011** (i.e., the biofix event). The UC IPM website says the best day to spray is when 100 DD have accumulated after the biofix, and the next generation of adults can be expected 1056 DD after biofix. Find the dates for these events.
+
+Step 1 is to filter the dates to begin with the day after biofix, and add a column for accumulated degree days:
+
+```{r chunk17}
+pt1_nowdd_2011_tbl <- pt1_nowdd_tbl |> 
+  filter(dt > as.Date("2011-04-18"), dt <= as.Date("2011-10-31")) |> 
+  mutate(now_dd_acc = cumsum(now_dd)) 
+
+head(pt1_nowdd_2011_tbl)  
+```
+
+\
+
+Find the date when 100 DD have accumulated:
+
+```{r chunk18}
+pt1_nowdd_2011_tbl |> 
+  filter(now_dd_acc >= 100) |> 
+  slice(1) 
+```
+
+\
+
+And 1056 DD:
+
+```{r chunk19}
+pt1_nowdd_2011_tbl |> 
+  filter(now_dd_acc >= 1056) |> 
+  slice(1) |> 
+  pull(dt)
+```
+
+\
+
+### Applying Degree Days: Estimating the biofix when you don't have observations
+
+Pathak et al ([2021](https://doi.org/10.1016/j.scitotenv.2020.142657)) estimate the emergence of the first flight of Navel Orangeworm as occurring when 300 °F NOW DD have accumulated after January 1st. Compute when this threshold was reached for the historic period.
+
+Step 1 is to remove incomplete years and compute accumulated degree days for each year:
+
+```{r chunk20}
+pt1_nowdd_yr_acc_tbl <- pt1_nowdd_tbl |> 
+  mutate(year = lubridate::year(dt)) |>    ## add a year column
+  filter(year >= 2011) |>                  ## remove 2010 (incomplete year)
+  group_by(year) |>                        ## group by years
+  mutate(dd_acc_yr = cumsum(now_dd))       ## for each year, compute accumulated DD
+
+head(pt1_nowdd_yr_acc_tbl)
+```
+
+\
+
+Step 2: on what day each year did we reach 300 DD °F?
+
+```{r chunk21}
+pt1_nowdd_yr_acc_tbl |> 
+  filter(dd_acc_yr >= 300) |> 
+  summarise(first_300dd_date = min(dt), first_300dd_jday = yday(min(dt)))
+```
+
+\
+
+# Adding a column with tomorrow's temperature
+
+Some degree day formulas (i.e., double-sine and double-triangle) require the next day's minimum temp to be included. We can add this to our data frame using `dplyr::lead()`.
+
+For example, starting with:
+
+```{r chunk22}
+head(pt1_minmax_tbl)
+```
+
+\
+
+Add the next day's minimum temperature:
+
+```{r chunk23}
+pt1_minmax_nextmin_tbl <- pt1_minmax_tbl |> 
+  mutate(tmin_next = lead(tmin, n = 1))
+
+head(pt1_minmax_nextmin_tbl)
+```
+
+\
+
+Note how `lead()` treats the last row:
+
+```{r chunk24}
+tail(pt1_minmax_nextmin_tbl)
+```
+
+\
+
+Now we can compute degree days using the double-sine method:
+
+```{r chunk25}
+thresh_low <- 55
+thresh_up <- 94
+
+pt1_minmax_nextmin_tbl |>
+  mutate(now_dd_dblsine = dd_dbl_sine(daily_min = tmin,
+                                      daily_max = tmax, 
+                                      nextday_min = tmin_next,
+                                      thresh_low = thresh_low, 
+                                      thresh_up = thresh_up)) |> 
+  head()
+```
+
+\
+
+# Interpolating Hourly Temps
+
+Some agroclimate metrics require hourly temperatures, such as chill hours and frost exposure ([Parker et al, 2021](https://doi.org/10.1016/j.scitotenv.2020.143971)). Ideally you would have hourly temperature data for these metrics, but if not you can interpolate hourly temps from the daily min and max.
+
+One of the best algorithms for interpolating hourly temps comes from Linvill ([1990](https://doi.org/10.21273/HORTSCI.25.1.14)). This method uses an idealized sine curve to describe daytime warming, and a logarithmic decay function for nighttime cooling. The transition between warming and cool is a function of the day length, which in turn is modeled by sunrise and sunset, which in turn is modeled by latitude.
+
+The [chillR](https://cran.r-project.org/package=chillR) package has a function `make_hourly_temps()` hat applies the Linvill method. You need to feed it a data frame that is formatted with specific columns, plus a latitude value ([details](https://cran.r-project.org/web/packages/chillR/vignettes/hourly_temperatures.html)).
+
+The first step is to make the min and max temps separate columns:
+
+```{r chunk26}
+pt1_minmax_tbl <- pt1_tbl |> 
+  mutate(dt = as.Date(dt),
+         temp_f = set_units(val, degF)) |> 
+  pivot_wider(id_cols = dt, names_from = slug, values_from = temp_f) |> 
+  rename(tmin = tmmn_day_gridmet, tmax = tmmx_day_gridmet) |> 
+  mutate(tmax = if_else(tmax < tmin, tmin, tmax))
+
+head(pt1_minmax_tbl)
+```
+
+\
+
+Next, we have to add a couple of columns, and change the column names, to match the format expected by `chillR::make_hourly_temps()` (as described on the help page). This is an example of data wrangling to 'work backwards' from what you need to what you've got:
+
+```{r chunk27}
+pt1_minmax_chillr_tbl <- pt1_minmax_tbl |> 
+  mutate(Year = lubridate::year(dt),
+         Month = lubridate::month(dt),
+         Day = lubridate::day(dt),
+         Tmax = as.numeric(tmax),
+         Tmin = as.numeric(tmin)) |> 
+  select(DATE = dt, Year, Month, Day, Tmax, Tmin)
+
+head(pt1_minmax_chillr_tbl)
+```
+
+\
+
+Now we can call `chillR::make_hourly_temps()`, also passing the latitude of our location:
+
+```{r chunk28}
+library(chillR)
+
+pt1_coords[2]
+
+pt1_hourtemps_wide_tbl <- make_hourly_temps(latitude = pt1_coords[2],
+                                            year_file = pt1_minmax_chillr_tbl)
+head(pt1_hourtemps_wide_tbl)
+```
+
+\
+
+`make_hourly_temps()` gives us *wide* data. It's generally easier to work with hourly temperature data in a *long* format. We can reshape the hourly temps with `tidyr::pivot_longer()`.
+
+```{r chunk29}
+pt1_hourtemps_long_tbl <- pt1_hourtemps_wide_tbl |>
+  pivot_longer(cols = starts_with("Hour_"),
+               names_to = "Hour",
+               names_prefix = "Hour_",
+               names_transform = list(Hour = as.integer),
+               values_to = "temp_f") |>
+  mutate(date_hour = lubridate::make_datetime(year = Year, month = Month,
+                                              day = Day, hour = Hour,
+                                              tz = "America/Los_Angeles")) |>
+  select(date_hour, temp_f)
+
+head(pt1_hourtemps_long_tbl)
+```
+
+\
+
+To see what these hourly temperatures look like, let's plot one week of them:
+
+```{r chunk30}
+pt1_hourtemps_long_tbl |> 
+  filter(date_hour >= as.Date("2011-01-01"), date_hour <= as.Date("2011-01-07")) |> 
+  ggplot(aes(x = date_hour, y = temp_f)) +
+  geom_line(aes(color="red"), show.legend = FALSE)
+```
+
+\
+
+# Chill Portions
+
+Chill portions and chill hours are like degree days, but for cold temperatures. Certain phenology events, like blooming in fruit and nut trees, are correlated with the net amount of cold temperatures the trees been exposed to. This reflect an evolutionary adaptation trees have developed to prevent blooming too early and hence risking damage from a late frost. Different fruit and nut trees have developed [different thresholds of chill portions](https://fruitsandnuts.ucanr.edu/Weather_Services/chilling_accumulation_models/CropChillReq/) that tell them when its time to 'wake up' from their winter dormancy.
+
+We can compute accumulated chill portions by passing a vector of hourly temperature values to `chillR::Dynamic_Model()`. Note however that `Dynamic_Model()` expects the temperatures to be in Celsius, so the first step is to add a column with the temperature in °C using the units package:
+
+```{r chunk31}
+pt1_hourtemps_degc_tbl <- pt1_hourtemps_long_tbl |> 
+  mutate(temp_c = as.numeric(set_units(set_units(temp_f, degF), degC)))
+         
+head(pt1_hourtemps_degc_tbl)        
+```
+
+\
+
+Now we can compute accumulated chill portions using `Dynamic_Model()`:
+
+```{r chunk32}
+pt1_chillport_tbl <- pt1_hourtemps_degc_tbl |> 
+  mutate(chillport_acc = chillR::Dynamic_Model(temp_c))
+
+head(pt1_chillport_tbl)
+```
+
+\
+
+Plot accumulated chill portions for one season:
+
+```{r chunk33}
+pt1_chillport_tbl |> 
+  filter(date_hour >= as.Date("2010-10-01"), date_hour <= as.Date("2011-07-01")) |> 
+  ggplot(aes(x = date_hour, y = chillport_acc)) +
+  geom_line() +
+  ggtitle("Chill Portions 2010-11")
+```
+
+\
+
+# Challenge Question
+
+New Star Cherries require [54 chill portions](https://fruitsandnuts.ucanr.edu/Weather_Services/chilling_accumulation_models/CropChillReq/ "54 chill portions") to come out of their winter dormancy. Identify the date when this level of chill was reached each year of the observed dataset. For the purposes of the exercise, consider the chill season to go from Nov 1 thru June 30.
+
+**Hint:** This will look a lot like the question about the date when degree days were reached. [Answer](http://bit.ly/3VH2UKs)
+
+```{r chunk34}
+## Your answer here
+
+```
+
+\
+
+# End!
+
+Remember to save the Notebook to generate a HTML version that includes all executed code that you can save for keeps!

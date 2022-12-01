@@ -1,0 +1,527 @@
+---
+title: "Agroclimate Metrics Notebook #1"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    css: https://ucanr-igis.github.io/agroclimR/assets/nb_css01.css
+    includes: 
+      after_body: https://ucanr-igis.github.io/agroclimR/assets/nb_footer_agroclimr.html
+---
+
+# Summary
+
+In this Notebook we will learn how to:
+
+-   find the closest CIMIS weather station\
+-   import weather station data for a single season and a single location from CIMIS\
+-   filter weather data based on dates\
+-   plot weather data\
+-   compute rolling averages\
+-   compute threshold based metrics, including hot days and frost days\
+-   compte the last spring freeze date\
+-   find and quantify spells of threshold based metrics, such as heat waves\
+-   reshape data to put separate variables in separate columns\
+-   compute the diurnal temperature range\
+-   compute irrigation requirements based on reference evapotranspiration
+
+\
+
+# Load Packages
+
+First load the packages we'll need below:
+
+```{r chunk01, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(sf)
+library(cimir)
+library(zoo)
+library(leaflet)
+```
+
+\
+
+# Import Weather Data from CIMIS
+
+Agroclimate metrics require weather data, such as the minimum and maximum temperature, precipitation, relative humidity, reference ETo, and so on. For this exercise, we'll import weather records from a station in the [CIMIS](https://cimis.water.ca.gov/) network.
+
+::: shaded-box
+**Hourly or Daily Weather Data?**
+
+In theory, hourly data should be a better predictor of plant or insect growth, because it captures nuances and processes on a smaller time scale. Hourly data is also not that hard to get these days, at least for the current time period.
+
+However in practice most of the crop and pest models in use are based on **daily data**, so if you want to use those models you to provide daily data. The rest of this Notebook therefore will use **daily** weather data.
+:::
+
+## CIMIS
+
+[CIMIS](https://cimis.water.ca.gov/) is a network of \~150 automated weather stations run by [CADWR](https://water.ca.gov/) for the purposes of informing irrigators. It is a popular source of weather data because of the coverage area, the stations record hourly and daily values of main weather variables. The data are also freely available through various websites and an API.
+
+The [`cimir`](https://hydroecology.net/cimir/) package provides functions to import data from the CIMIS network directly into R. Many of these functions require creating a [CIMIS account](https://cimis.water.ca.gov/Auth/Register.aspx) so you can get a [CIMIS API key](https://cimis.water.ca.gov/Auth/Register.aspx) (free).
+
+### Map the CIMIS Stations
+
+The easiest way to get CIMIS data is if you know which station. Let's make a map of the CIMIS Stations. Step 1 is to get the list of active stations:
+
+```{r chunk02}
+## If you have a CIMIS key, you can uncomment and run the following:
+## cimir::set_key("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
+## stations_all_tbl <- cimir::cimis_station()
+
+stations_all_tbl <- read.csv("./data/cimis_stations_all.csv")
+head(stations_all_tbl)
+```
+
+\
+
+Next we'll do a little data cleaning, keeping only the columns we'll need for to map the active stations:
+
+```{r chunk03}
+stations_cleaned_tbl <- stations_all_tbl |> 
+  filter(IsActive == "True") |> 
+  select(StationNbr, Name, HmsLatitude, HmsLongitude) |> 
+  distinct() |> 
+  transmute(station_id = as.numeric(StationNbr),
+            name = Name,
+            lon = as.numeric(gsub("^.*/ ", "", HmsLongitude)),
+            lat = as.numeric(gsub("^.*/ ", "", HmsLatitude)))
+
+head(stations_cleaned_tbl)
+```
+
+\
+
+Turn this into a spatial object and map it with leaflet:
+
+```{r chunk04}
+stations_cleaned_sf <- stations_cleaned_tbl |> 
+  mutate(title = paste0(name, " (#", station_id, ")")) |> 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) |> 
+  select(title) 
+
+leaflet(stations_cleaned_sf) |>
+  addTiles() |> 
+  addCircleMarkers(radius = 5, popup = ~title)
+```
+
+\
+
+## Query a CIMIS Station
+
+To see what weather variables are available, run `cimis_items()`:
+
+```{r chunk05}
+cimis_items()
+```
+
+\
+
+You can retrieve data using `cimis_data()`. Let's get daily temperature, precipitation, and reference ETo for the Verona station (#235), north of Sacramento.
+
+```{r chunk06}
+# If you've entered a CIMIS key, uncomment the following line. 
+# Otherwise, run the next command to load the saved data
+# cimis_verona22_tbl <- cimis_data(targets = 235, start.date = "2021-10-01", end.date = "2022-09-30",
+#                                  items = "day-air-tmp-max,day-air-tmp-min,day-eto,day-precip")
+
+cimis_verona22_tbl <-  readRDS("./data/cimis_verona22.Rds")
+
+head(cimis_verona22_tbl)
+```
+
+\
+
+**Notes about the data frame returned by `cimis_data()`**
+
+-   our data frame contains 4 weather variables in a *long* (as opposed to wide) format\
+-   the `Date` column is already formatted as a date object\
+-   `Julian` is the day of the year (0..365)
+-   `Qc` is a quality control flag ([details](https://cimis.water.ca.gov/Content/PDF/CurrentFlags2.pdf))
+
+\
+
+# Time Filtering
+
+To filter rows based on the date, you need a column as a Date or time (POSIXct) object. The `lubridate` package has functions to convert character and number columns into dates.
+
+Once you have a date column, filtering is pretty easy. For example to pull the records for the **2022 growing season** from **April 15** thru **Sept 30, 2022**:
+
+```{r chunk07}
+grwsn_vals_tbl <- cimis_verona22_tbl |> 
+  select(Date, Item, Value, Qc) |> 
+  filter(Date >= as.Date("2022-04-15"), Date <= as.Date("2022-09-30"))
+
+grwsn_vals_tbl |> slice(1:20)
+```
+
+\
+
+### Plot the daily high temps
+
+We can plot daily high temperature at this location with a little help from dplyr and ggplot:
+
+```{r chunk08}
+grwsn_dailymax_tbl <- grwsn_vals_tbl |> 
+  filter(Item == "DayAirTmpMax") |> 
+  rename(max_temp = Value)
+ 
+ggplot(grwsn_dailymax_tbl, mapping = aes(x = Date, y = max_temp)) + 
+  geom_line() +
+  labs(title = "Daily High Temps", 
+           subtitle = "Verona CIMIS Station, Spring 2022")
+```
+
+\
+
+# Rolling Averages
+
+Rolling / moving averages are generically useful for smoothing out the bumps in a time series. For crop management you may not want to smooth out the bumps, but other applications are easier to address by looking at trends on a weekly or longer time period.
+
+Moving averages can also be useful to identify multi-day extreme events. For example, 5 consecutive days over 95 °F is killer for tomatoes. Computing the 5-day rolling average would be one way to identify when tomatoes might be in trouble (see also a threshold technique, coming up next).
+
+You can compute a rolling average with `zoo::rollmean()`. `k` is the rolling window size (should be an odd number). You should also pass `fill = NA`, which tells it to assign NA as the rolling average for the first and last days.
+
+```{r chunk09}
+grwsn_dailymax_movavg_tbl <- grwsn_dailymax_tbl |> 
+  mutate(dailymax_avg5d = zoo::rollmean(max_temp, k=5, fill=NA))
+
+ggplot(grwsn_dailymax_movavg_tbl, mapping = aes(x = Date, y = dailymax_avg5d)) + 
+  geom_line() +
+  labs(title = "Daily High Temps (5-day moving average)", 
+           subtitle = "Verona CIMIS Station, Spring 2022")
+```
+
+\
+
+# Challenge Question #1
+
+Compute the daily high temperature rolling average for an 11 day window, then plot it. [Answer](http://bit.ly/3AXfU6G)
+
+```{r chunk10}
+## Your answer here
+
+```
+
+\
+
+# Threshold Methods
+
+Many agroclimate metrics are defined by a threshold value. The threshold may be in reference to the range of variability at that location in the historic period, or it may be in reference to when some kind of physical or biological change happens.
+
+-   'extreme heat' and 'extreme precipitation' generally use a threshhold based on historic values for that location
+
+-   'hot days' are defined by a threshold temperature that affects crops ([Parker et al. 2022](https://doi.org/10.3390/agronomy12010205)).
+
+\
+
+## Hot Days
+
+How many 'hot days' were there in 2022, where 'hot' is defined as over 38 °C (100.4 °F)?
+
+Testing whether a day was 'hot' can be done with a simple comparison expression:
+
+```{r chunk11}
+grwsn_hotyn_tbl <- grwsn_dailymax_tbl |> 
+  mutate(hotyn = max_temp > 100.4)
+
+head(grwsn_hotyn_tbl)
+```
+
+\
+
+The number of hot days can be computed simply by summing the column of TRUE/FALSE values:
+
+```{r chunk12}
+grwsn_hotyn_tbl$hotyn |> sum()
+grwsn_hotyn_tbl$hotyn |> table()
+```
+
+\
+
+To see *when* the hot days occurred, we can overlay the threshold value on the time series plot:
+
+```{r chunk13}
+ggplot(grwsn_dailymax_tbl, mapping = aes(x = Date, y = max_temp)) + 
+  geom_line() +
+  geom_hline(yintercept = 100.4, color = "red", linewidth = 1) +
+  labs(title = "Daily High Temps", 
+           subtitle = "Verona CIMIS Station, Spring 2022")
+```
+
+\
+
+# Challenge Question #2
+
+Write an expression that returns the exact dates of hot days. [Answer](http://bit.ly/3XLihD8)
+
+```{r chunk14}
+## Your answer here
+
+```
+
+\
+
+# Last Spring Freeze
+
+Planting and other crop management practices have to be timed to take place after the last freeze of the winter. The date of the last freeze can be calculated by:
+
+1.  Identifying all freeze events from say February thru June, using a simple threshold test (minimum daily temp \<= 32 deg;F)
+
+2.  Find the date associated with the last frost
+
+\
+
+Step 1: add a 'Frost Day' column:
+
+```{r chunk15}
+daily_min_tbl <- cimis_verona22_tbl |> 
+  filter(Item == "DayAirTmpMin", Date >= as.Date("2022-02-01"), Date <= as.Date("2022-06-30")) |> 
+  mutate(frost_day = Value <= 32) |> 
+  select(Date, Item, Value, frost_day)
+
+head(daily_min_tbl)
+```
+
+\
+
+Step 2. How many frost days were there from February thru June?
+
+```{r chunk16}
+daily_min_tbl$frost_day |> table()
+```
+
+\
+
+Step 3. What was the **last** freeze date?
+
+```{r chunk17}
+daily_min_tbl |> 
+  filter(frost_day == TRUE) |> 
+  arrange(desc(Date)) 
+```
+
+\
+
+```{r chunk18}
+daily_min_tbl |> 
+  filter(frost_day == TRUE) |> 
+  slice_max(Date, n = 1) |> 
+  pull(Date)
+```
+
+\
+
+# Spells and Runs
+
+Some climate metrics are defined by a series of days when a threshold is surpassed. Examples include heatwaves. We may want to know the number of heatwaves, or the length of the heatwaves.
+
+`rle()` can be used to answer these questions. Let's see how `rle()` works:
+
+```{r chunk19}
+x <- c("a", "a", "a", "h", "t", "t", "t", "t", "a", "a", "a", "a", "c", "c", "d", "d", "d")
+xrle_lst <- rle(x)
+xrle_lst
+```
+
+\
+
+As you can see, `rle()` returns a list with two elements containing properties of groups of repeated letters. The `values` element contains the letter in each group, and the `lengths` element contains the number of letters (which could be 1).
+
+Say we're interested in groups of 3 or more repeated letters. We can find the number of groups of 3 or more letters by summing up the results of a logical expression:
+
+```{r chunk20}
+(xrle_lst$lengths >= 3) |> sum()
+```
+
+\
+
+And we can find the average length of these groups with:
+
+```{r chunk21}
+xrle_lst$lengths[ xrle_lst$lengths >= 3 ] |> mean()
+```
+
+\
+
+But what if we only wanted the number of 'runs' of the letter 'a'? We can simply use a compound logical expression:
+
+```{r chunk22}
+## Number of groups of 'a' of length 3 or more
+((xrle_lst$values == "a") & (xrle_lst$lengths >= 3)) |> sum()
+```
+
+\
+
+So how many heatwaves where the high temperature was \> 100.4 °F for 3 or more days?
+
+First we create the `rle()` list:
+
+```{r chunk23}
+hotyn_rle_lst <- rle(grwsn_hotyn_tbl$hotyn)
+hotyn_rle_lst
+```
+
+\
+
+Next we find the number of groups of TRUE:
+
+```{r chunk24}
+((hotyn_rle_lst$values == TRUE) & (hotyn_rle_lst$lengths >= 3)) |> sum()
+```
+
+\
+
+# Multi-Variable Metrics with Separate Columns
+
+Some metrics combine multiple weather station variables, such as the daily minimum and daily maximum temperature. Both of these variables are included in our CIMIS data, but they're mixed in with other variables in a long format. Remember what we got back from CIMIS:
+
+```{r chunk25}
+cimis_verona22_tbl |> 
+  select(Date, Item, Value, Qc, Unit) |> 
+  slice(1:10)
+```
+
+\
+
+For many multi-variable metrics, it is often easiest to pull out the variables we need as separate columns. This can be easily done `tidyr::pivot_wider()`. The key arguments we need to give it are `names_from` and `values_from` ([details](https://tidyr.tidyverse.org/articles/pivot.html)):
+
+```{r chunk26}
+daily_temps_tbl <- cimis_verona22_tbl |> 
+  filter(Item %in% c("DayAirTmpMin", "DayAirTmpMax")) |> 
+  select(Date, Item, Value) |> 
+  pivot_wider(names_from = Item, values_from = Value)
+  
+daily_temps_tbl |> head()
+```
+
+\
+
+## Average Daily Temperature
+
+With the daily minimum and maximum temperature as separate columns, computing the average temperature is a simple expression:
+
+```{r chunk27}
+daily_mean_tbl <- daily_temps_tbl |> 
+  mutate(daily_mean = (DayAirTmpMax + DayAirTmpMin) / 2)
+  
+head(daily_mean_tbl)
+```
+
+\
+
+## Diurnal Temperature Range
+
+The Diurnal Temperature Range (DTR) is a useful metric for evaluating crop suitability, and is simply the maximum daily temperature minus the minimum:
+
+```{r chunk28}
+daily_dtr_tbl <- daily_temps_tbl |> 
+  mutate(DTR = DayAirTmpMax - DayAirTmpMin)
+  
+head(daily_dtr_tbl)
+```
+
+\
+
+Large swings in temperature may represent days when a front passed through.
+
+```{r chunk29}
+ggplot(daily_dtr_tbl, mapping = aes(x = Date, y = DTR)) +
+  geom_line() +
+  labs(title = "Diurnal Temperature Range",
+       subtitle = "Verona CIMIS Station",
+       y = "DTR (degrees F)")
+```
+
+\
+
+The histogram of DTR can be used to compare the magnitude of daily temperature variation across sites or over time:
+
+```{r chunk30}
+ggplot(daily_dtr_tbl, mapping = aes(x = DTR)) +
+  geom_histogram() +
+  labs(title = "Diurnal Temperature Range",
+       subtitle = "Verona CIMIS Station. Oct '21 - Sep '22'")
+```
+
+\
+
+# Evapotranspiration
+
+The goal of precision irrigation is to give the crop just the amount of water it needs, and nothing more. A standard method for determining how much water is needed is to figure out how much water was lost since the last time it was irrigated, and put back exactly that much.
+
+Crops lose water due to evapotranspiration (ET), which combines evaporation (i.e., from the soil) and respiration (from the plants). The challenge however is that different crops respire at different rates, which further vary based on the stage of the crop (i.e., baby plants don't respire nearly as much as mature plants). So there is not one-size-fits-all value of ET that you can get from weather variables.
+
+To get around this, CIMIS stations have a sensor that measure 'reference ET' (ET~0~) from a standard 'crop' (grass), which can be converted to crop ET (ET~c~) by multiplying the reference ET by a 'crop coefficient' (K~c~) ([more info](https://cimis.water.ca.gov/Content/pdf/Crop_Coeffients.pdf)). Crop coefficients have been developed through research for many crops ([more info](https://www.fao.org/3/x0490e/x0490e0b.htm#crop%20coefficients)).
+
+\
+
+## How much water do my tomatoes need?
+
+Let's compute the amount of daily evapotranspiration for tomatoes for the month of June. During the middle of the growing season, tomatoes have a K~c~ = 1.15.
+
+To compute irrigation requirements, we need to:
+
+1.  Pull out ET~0~ and precipitation for the month of June
+
+2.  Put them in separate columns:
+
+```{r chunk31}
+june_eto_pr_tbl <- cimis_verona22_tbl |> 
+  filter(Item %in% c("DayEto", "DayPrecip"), Date >= as.Date("2022-06-01"), Date <= as.Date("2022-06-30") ) |> 
+  pivot_wider(id_cols = Date, names_from = Item, values_from = Value)
+
+head(june_eto_pr_tbl)
+```
+
+\
+
+To compute the daily ET~c~ for tomatoes, we simply multiply the reference ET~0~ by the crop coefficient for tomatoes:
+
+```{r chunk32}
+Kc <- 1.15
+
+june_etc_tbl <- june_eto_pr_tbl |> 
+  mutate(ETc_tomato = DayEto * Kc) 
+
+june_etc_tbl |> head()
+```
+
+\
+
+The total water loss each day is the amount of ET~c~ minus any precipitation (which CIMIS also reports in inches):
+
+```{r chunk33}
+june_netwaterloss_tbl <- june_etc_tbl |> 
+  mutate(net_water_loss_in = ETc_tomato - DayPrecip )
+
+june_netwaterloss_tbl |> head()
+```
+
+\
+
+To calculate the total amount of water the tomatoes need, we simply add up the daily net water lost since the last irrigation event.
+
+Suppose the last irrigation was June 10, 2022, and today is June 15. How much water do we need to add?
+
+```{r chunk34}
+june_netwaterloss_tbl |> 
+  filter(Date > as.Date("2022-06-10"), Date <= as.Date("2022-06-15")) |> 
+  mutate(cummulative_water_lost = cumsum(net_water_loss_in))
+```
+
+\
+
+# Challenge Question #3
+
+From October 1 2021, thru March 31, 2022, how many days did the temperature dip below 53 °F (a temperature which reduces the load of certain overwintering insects)? [Answer](http://bit.ly/3AWi4Ud)
+
+```{r chunk35}
+## Your answer here
+
+```
+
+# End
+
+Remember to save the Notebook to generate a HTML version that includes all executed code that you can save for keeps!
