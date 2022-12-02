@@ -98,11 +98,6 @@ div.colright {
 div.colclear {
   clear: both;
 }
-img.stackme {
-  position:absolute;
-  top:0;
-  left:0;
-}
 div.space_images > p > img {
   margin-bottom:4em;
 }
@@ -144,4 +139,7 @@ span.fakecode {
   border-left-width: 1em;
   background-color: #E4E5E7;
   line-height: 150%;
+}
+div.hideme > h1 {
+  display: none;
 }
