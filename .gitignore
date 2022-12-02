@@ -11,6 +11,8 @@ index*.Rmd
 /data/huc10_temps*
 /head.html
 /*_answers.Rmd
+/data_hide
+/zips
 # Temporary ignores below:
 # /data
 # /slides/agclim*
