@@ -150,6 +150,8 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   <meta name="msapplication-TileColor" content="#da532c">
   <meta name="theme-color" content="#ffffff">
 
+  <script language="javascript" type="text/javascript">w3c_slidy.mouse_click_enabled = false;</script>
+
   <!-- Global site tag (gtag.js) - Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-41HMZ3JJJ6"></script>
   <script>
@@ -162,6 +164,8 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   <link href="lib/slidy-2/styles/slidy.css" rel="stylesheet" />
   <script src="lib/slidy-2/scripts/slidy.js"></script>
   <script src="lib/slidy_shiny-1/slidy_shiny.js"></script>
+  <script src="lib/kePrint-0.0.1/kePrint.js"></script>
+  <link href="lib/lightable-0.0.1/lightable.css" rel="stylesheet" />
   <link rel="stylesheet" type="text/css" media="screen, projection, print"
    href="slidy2022.css" />
 </head>
@@ -180,6 +184,9 @@ Summaries</h1>
 </div>
 <div id="degree-days" class="slide section level1">
 <h1>Degree Days</h1>
+<script type="text/javascript">
+w3c_slidy.mouse_click_enabled = false;
+</script>
 <div
 style="display:flex; justify-content:start; align-items:start; margin-left:2em;">
 <div style="flex-shrink:1;">
@@ -256,14 +263,27 @@ of an observation such as when you see eggs in your traps.</p>
 </div>
 <div id="chill-hours-chill-portions" class="slide section level1">
 <h1>Chill Hours &amp; Chill Portions</h1>
-<p>Chill hours and portions measure the accumulated cold over time.</p>
-<p>Many fruit and nut trees have an internal mechanism to keep track of
-accumulated cold during the winter.</p>
-<p>This tells them when its safe to ‘wake up’ from their winter
-dormancy</p>
-<p>Chill Hours are the number of hours &lt; 7.5 °C.</p>
-<p>Chill Portions are more complicated, but do a better job of
-predicting spring bloom.</p>
+<div style="display:flex; justify-content:center; align-items:start;">
+<div style="flex-shrink:1; max-width:700px;">
+<div class="indented1">
+<ul>
+<li>Chill hours and portions measure the accumulated cold over
+time.</li>
+<li>Many fruit and nut trees have developed an internal mechanism to
+keep track of accumulated cold during the winter.</li>
+<li>This tells them when its safe to ‘wake up’ from their winter
+dormancy, and not get nailed by a late frost.</li>
+<li>Chill Hours are the number of hours &lt; 7.5 °C.</li>
+<li>Chill Portions are more complicated, but do a better job of
+predicting spring bloom.</li>
+</ul>
+</div>
+</div>
+<div style="flex-shrink:1;">
+<p><img src="images/winter-orchard_450x338_q10.jpg" /></p>
+</div>
+</div>
+<p><!-- flex div container --></p>
 <p><br />
 </p>
 <p><a href="https://cran.r-project.org/package=chillR/" target="_blank"
@@ -272,12 +292,11 @@ style="display:block; margin:1em auto;" /></a></p>
 <center>
 For a deeper dive into chill, see the eBook:<br/> <a
 href="http://inresgb-lehre.iaas.uni-bonn.de/chillR_book/introduction.html"><strong>Tree
-Phenology Analysis with R</strong></a><br/> Eike Luedeling
+Phenology Analysis with R</strong></a><br/> by Eike Luedeling
 </center>
 </div>
-<div id="r-tricks" class="slide section level1">
-<h1>R-Tricks</h1>
-<h2 id="date-parts">Date Parts</h2>
+<div id="r-tricks-date-parts" class="slide section level1">
+<h1>R-Tricks: Date Parts</h1>
 <p>Analyzing multi-year data often requires using <em>date parts</em>
 (e.g., month, year, Julian day), for filtering and grouping.</p>
 <p>The <code>lubridate</code> package has several functions you can use.
@@ -303,12 +322,93 @@ Example:</p>
 </div>
 <p><br />
 </p>
-<h2 id="converting-units">Converting Units</h2>
-<p>Weather data</p>
-<p>The <code>units</code> package</p>
 </div>
-<div id="grouping-and-summarizing-data" class="slide section level1">
-<h1>Grouping and Summarizing Data</h1>
+<div id="r-tricks-converting-units" class="slide section level1">
+<h1>R-Tricks: Converting Units</h1>
+<p>Weather data often requires you to convert units.</p>
+<p>The <code>units</code> package has built-in database of conversion
+constants so you don’t have to look them up. Many R packages use the
+units package.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(units)</span></code></pre></div>
+<pre><code>## udunits database from C:/Users/Andy/AppData/Local/R/win-library/4.2/units/share/udunits/udunits2.xml</code></pre>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>boiling_int <span class="ot">&lt;-</span> <span class="dv">212</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>(boiling_f <span class="ot">&lt;-</span> <span class="fu">set_units</span>(boiling_int, degF))</span></code></pre></div>
+<pre><code>## 212 [degF]</code></pre>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>(boiling_c <span class="ot">&lt;-</span> <span class="fu">set_units</span>(boiling_f, degC))</span></code></pre></div>
+<pre><code>## 100 [°C]</code></pre>
+<p><br />
+</p>
+</div>
+<div id="r-tricks-grouping-and-summarizing-data"
+class="slide section level1">
+<h1>R-Tricks: Grouping and Summarizing Data</h1>
+<p>For multi-year or multi-site data, you often need to compute
+summaries for specific groups of rows.</p>
+<p>dplyr has functions for working with groups of rows:</p>
+<table class="table table-bordered table-striped" style="margin-left: auto; margin-right: auto;">
+<tbody>
+<tr>
+<td style="text-align:left;">
+define groups of rows (invisibly)<br><span
+style="font-size:80%; font-style:italic;">i.e., change the unit of
+analysis</span>
+</td>
+<td style="text-align:left;font-family: monospace;">
+group_by()
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+summary stats for individual columns
+</td>
+<td style="text-align:left;font-family: monospace;">
+summarize(…)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+aggregrate functions
+</td>
+<td style="text-align:left;font-family: monospace;">
+mean(), median(), sum(), n(), first(), sd(), IQR(), etc.
+</td>
+</tr>
+</tbody>
+</table>
+<p><br />
+</p>
+<p>Example: How many category 4 and higher storms were there each
+month?</p>
+<div class="indented2 indented2r">
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code></pre></div>
+<pre><code>## 
+## Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:kableExtra&#39;:
+## 
+##     group_rows</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>storms <span class="sc">%&gt;%</span> </span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(name, year, month, category) <span class="sc">%&gt;%</span>     <span class="do">## select the columns we need</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(category <span class="sc">&gt;=</span> <span class="dv">4</span>) <span class="sc">%&gt;%</span>                   <span class="do">## filter those rows where category &gt;= 4</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(month) <span class="sc">%&gt;%</span>                         <span class="do">## group the rows by month</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarize</span>(<span class="at">num_strong_hurricanes =</span> <span class="fu">n</span>())      <span class="do">## for each group, report the count</span></span></code></pre></div>
+<pre><code>## # A tibble: 5 × 2
+##   month num_strong_hurricanes
+##   &lt;dbl&gt;                 &lt;int&gt;
+## 1     7                    12
+## 2     8                    95
+## 3     9                   275
+## 4    10                    91
+## 5    11                    24</code></pre>
+</div>
+<p><br />
+</p>
 </div>
 <div id="notebook-2-cummulative-metrics-and-multi-year-summaries"
 class="slide section level1">
@@ -324,6 +424,8 @@ reached</li>
 <li>Compute chill portions</li>
 </ol>
 </div>
+<p>Or see the <a href="../agclim_nb02_answers.nb.html" target="_blank"
+rel="noopener">Completed Notebook #2</a>.</p>
 </div>
 <div id="end" class="slide section level1">
 <h1>End</h1>

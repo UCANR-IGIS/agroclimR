@@ -32,6 +32,10 @@
 <script src="slides/lib/navigation-1.1/tabsets.js"></script>
 <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon-16x16.png">
+<meta name="msapplication-TileColor" content="#da532c">
+<meta name="theme-color" content="#ffffff">
+
+<script language="javascript" type="text/javascript">w3c_slidy.mouse_click_enabled = false;</script>
 
 <!-- Global site tag (gtag.js) - Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-41HMZ3JJJ6"></script>
@@ -196,11 +200,19 @@ span.linote {
   font-size:80%;
   font-style:italic;
 }
-
-
+div.grayme > h1 {
+  color:#888;
+}
+div.grayme > ul > li {
+  color:#888;
+}
 </style>
 <p><br />
 </p>
+<!-- <details style="cursor: pointer; color: rgb(51,122,183); margin-left:2em;"> -->
+<!-- <summary>Recording</summary> -->
+<!-- <iframe width="560" height="315" src="https://www.youtube.com/embed/aoDy-vaUjRE?rel=0" title="YouTube video player" frameborder="1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="margin-left:1.5em; margin-top:1em;"></iframe> -->
+<!-- </details> -->
 <div id="preparing-for-the-workshop" class="section level1"
 style="clear:both;">
 <h1 style="clear:both;">Preparing for the Workshop</h1>
@@ -215,9 +227,13 @@ account</strong><br/><span class="note">We’ll be using <a
 href="https://posit.cloud/" target="_blank" rel="noopener">posit
 Cloud</a> for the hands-on exercises. Please create a free account if
 you don’t already have one (RStudio Cloud accounts work fine). Once
-you’ve created your posit Cloud account, you’re done for now. On the day
-of the workshop, the instructor will share a link to clone a RStudio
-project that will have everything ready to go.</span></p>
+you’ve created your posit Cloud account, you’re done for
+now.<br/><br/>On the day of the workshop, please click the following
+link to make a clone of the workshop RStudio project:</span></p>
+<p style="font-family:monospace; font-size:110%; text-align:center; font-weight:bold;">
+<a href="https://posit.cloud/content/5055980"
+target="_blank">https://posit.cloud/content/5055980</a>
+</p>
 <div
 style="border:2px solid gray; margin:1em 6em; background-color:#eee; font-size:80%; padding:0.5em;">
 <p><strong>Tip:</strong> Using a second monitor is strongly recommended
@@ -255,12 +271,15 @@ RStudio.</span></p>
 <div id="part-i.-intro-and-simple-metrics" class="section level1">
 <h1>Part I. Intro and Simple Metrics</h1>
 <ul>
-<li><p>Slides<br/><span class="linote">Coming soon</span></p></li>
-<li><p>Notebook<br/><span class="linote">Coming soon. Notebooks are
-already included in the RStudio Cloud project.</span></p></li>
+<li><p><a href="./slides/agclimr_slides01.html" target="_blank"
+rel="noopener">Slides</a></p></li>
+<li><p>Notebook #1: <a
+href="https://raw.githubusercontent.com/UCANR-IGIS/agroclimR/main/agclim_nb01.Rmd"
+target="_blank" rel="noopener">Rmd</a> | <a
+href="agclim_nb01_answers.nb.html" target="_blank"
+rel="noopener">completed</a><br/><span class="linote">Notebooks are
+included in the RStudio Cloud project.</span></p></li>
 </ul>
-<!---- [Slides](./slides/slides_pt1.html){target="_blank" rel="noopener"}  ---->
-<!-- Notebook 2: [ex02.R](https://raw.githubusercontent.com/ucanr-igis/IntroR_Oct22/main/ex02.R){target="_blank" rel="noopener"} -->
 <p><br />
 </p>
 </div>
@@ -268,27 +287,28 @@ already included in the RStudio Cloud project.</span></p></li>
 class="section level1">
 <h1>Part II. Cummulative metrics and multi-year summaries</h1>
 <ul>
-<li><p>Slides<br/><span class="linote">Coming soon</span></p></li>
-<li><p>Notebook<br/><span class="linote">Coming soon. Notebooks are
-already included in the RStudio Cloud project.</span></p></li>
+<li><p><a href="./slides/agclimr_slides02.html" target="_blank"
+rel="noopener">Slides</a></p></li>
+<li><p>Notebook #2: <a
+href="https://raw.githubusercontent.com/UCANR-IGIS/agroclimR/main/agclim_nb02.Rmd"
+target="_blank" rel="noopener">Rmd</a> | <a
+href="agclim_nb02_answers.nb.html" target="_blank"
+rel="noopener">completed</a><br/><span class="linote">Notebooks are
+included in the RStudio Cloud project.</span></p></li>
 </ul>
 <p><br />
 </p>
 </div>
-<div
-id="part-iii.-computing-agroclimate-metrics-with-projected-climate-data"
-class="section level1">
-<h1>Part III. Computing Agroclimate Metrics with Projected Climate
+<div id="part-iii.-agroclimate-metrics-with-modeled-climate-data"
+class="section level1 grayme">
+<h1 class="grayme">Part III. Agroclimate Metrics with Modeled Climate
 Data</h1>
+<div class="grayme">
 <ul>
-<li><p>Slides<br/><span class="linote">Coming soon</span></p></li>
-<li><p>Notebook<br/><span class="linote">Coming soon. Notebooks are
-already included in the RStudio Cloud project.</span></p></li>
+<li><p>Slides</p></li>
+<li><p>Notebook #3</p></li>
 </ul>
-<!-- <details style="cursor: pointer; color: rgb(51,122,183); margin-left:2em;"> -->
-<!-- <summary>Recording</summary> -->
-<!-- <iframe width="560" height="315" src="https://www.youtube.com/embed/aoDy-vaUjRE?rel=0" title="YouTube video player" frameborder="1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="margin-left:1.5em; margin-top:1em;"></iframe> -->
-<!-- </details> -->
+</div>
 <p><br/></p>
 <hr/>
 <div>
