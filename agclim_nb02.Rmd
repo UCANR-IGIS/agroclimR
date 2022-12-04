@@ -515,7 +515,7 @@ Now we can compute accumulated chill portions using `Dynamic_Model()`:
 
 ```{r chunk32}
 pt1_chillport_tbl <- pt1_hourtemps_degc_tbl |> 
-  mutate(chillport_acc = chillR::Dynamic_Model(temp_c))
+  mutate(chillport_acc = chillR::Dynamic_Model(temp_c, summ = TRUE))
 
 head(pt1_chillport_tbl)
 ```

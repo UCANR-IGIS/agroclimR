@@ -267,9 +267,9 @@ Write an expression that returns the exact dates of hot days. [Answer](http://bi
 
 Planting and other crop management practices have to be timed to take place after the last freeze of the winter. The date of the last freeze can be calculated by:
 
-1.  Identifying all freeze events from say February thru June, using a simple threshold test (minimum daily temp \<= 32 deg;F)
+1.  Identifying all freeze events from say February thru June, using a simple threshold test (minimum daily temp &le; 32 &deg;F)
 
-2.  Find the date associated with the last frost
+2.  Find the date associated with the last freeze
 
 \
 
